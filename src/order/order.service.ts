@@ -11,6 +11,7 @@ import { cart, HCartDocument } from 'src/DB/Models/cart.model';
 import { HProductDocument, Product } from 'src/DB/Models/product.model';
 import { Coupon, HCouponDocument } from 'src/DB/Models/coupon.model';
 import { OrderStatusEnum } from 'src/common/enums/orderEnum';
+import { SocketService } from 'src/socket/socket.service';
 
 @Injectable()
 export class OrderService {
@@ -21,6 +22,7 @@ export class OrderService {
     private readonly productModel: Model<HProductDocument>,
     @InjectModel(Coupon.name)
     private readonly couponModel: Model<HCouponDocument>,
+    private readonly socketService: SocketService,
   ) {}
 
   async checkOut(userId: string, createOrderDto: CreateOrderDto) {
@@ -72,11 +74,40 @@ export class OrderService {
       discountCoupon = (calculatedSubTotal * targetCoupon.discount) / 100;
     }
     const finalPrice = calculatedSubTotal - discountCoupon;
-
     for (const item of orderItems) {
-      await this.productModel.findByIdAndUpdate(item.product, {
-        $inc: { stock: -item.quantity },
-      });
+      const updatedProduct = await this.productModel
+        .findByIdAndUpdate(
+          item.product,
+          { $inc: { stock: -item.quantity } },
+          { new: true },
+        )
+        .exec();
+      if (updatedProduct) {
+        if (updatedProduct.stock <= 5 && updatedProduct.stock > 0) {
+          this.socketService.emitToRoom(
+            `Product:${updatedProduct._id}`,
+            'lowStockAlert',
+            { productId: updatedProduct._id ,
+              productName: updatedProduct.name,
+              currentStock: updatedProduct.stock
+            },
+          );
+
+
+        }
+        if (updatedProduct.stock === 0) {
+          this.socketService.emitToAll(
+            'productSoldOut',
+            { productId: updatedProduct._id ,
+              productName: updatedProduct.name,
+              currentStock: updatedProduct.stock
+            },
+          );
+
+
+        }
+
+      }
     }
     if (targetCoupon) {
       await this.couponModel.findByIdAndUpdate(targetCoupon._id, {
@@ -93,14 +124,14 @@ export class OrderService {
       finalPrice,
       shippedAddress: createOrderDto.shippingAddress,
       appliedCoupon: targetCoupon?._id || null,
-      status:OrderStatusEnum.PENDING
+      status: OrderStatusEnum.PENDING,
     });
 
-     await Order.save();
+    await Order.save();
 
     cart.items = [];
-    cart.totalPrice=0;
-    await cart?.save()
+    cart.totalPrice = 0;
+    await cart?.save();
 
     return Order;
   }

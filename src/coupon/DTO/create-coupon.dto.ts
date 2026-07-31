@@ -1,5 +1,5 @@
+import { InputType } from "@nestjs/graphql";
 import { IsDateString, IsInt, IsNotEmpty, IsString, Max, Min } from "class-validator";
-
 export class CreateCouponDto {
     @IsString()
     @IsNotEmpty({message:  'Coupon Code is required' })

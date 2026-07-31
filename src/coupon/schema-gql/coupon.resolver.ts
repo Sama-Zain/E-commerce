@@ -1,7 +1,7 @@
 import { CouponService } from './../coupon.service';
 import { Args, Context, Mutation, Query, Resolver } from "@nestjs/graphql";
 import { Coupon } from "src/DB/Models/coupon.model";
-import { CreateCouponDto } from '../DTO/create-coupon.dto';
+import { CreateCouponDto } from '../schema-gql/dto/create-coupon.input';
 import { UseGuards } from '@nestjs/common';
 import { AuthGuard } from 'src/common/services/auth.guard';
 
